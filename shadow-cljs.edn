@@ -1,0 +1,19 @@
+;; shadow-cljs configuration
+{:source-paths
+ ["src"]
+
+ :dependencies [[org.clojure/core.async "1.6.68"]]
+
+ :builds
+ {:app {
+        :target     :browser
+        :output-dir "resources/public/js"
+        :compiler-options {:source-map                          true
+                           :source-map-includes-sources-content true
+                           :source-map-detail-level             :all}
+        :devtools {:nrepl-init-ns snow.core
+                   :repl-pprint   true
+                   :http-root     "resources/public"
+                   :http-port     8181}
+        :modules  {:core {:init-fn snow.core/main}}}}}
+
