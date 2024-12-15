@@ -3,6 +3,7 @@
             [snow.gfx :as gfx]))
 
 (def iterations (.-MAX_SAFE_INTEGER js/Number))
+;; (def iterations 1000)
 (def snowflakes (atom []))
 (def canvas (atom {}))
 (def num-snowflakes (atom 0))
@@ -14,24 +15,21 @@
   (Snowflake. (rand-int max-x)            ;; x
               (rand-int max-y)            ;; y
               (+ 1 (rand-int 8))          ;; radius
-              {:fill "white" :colour nil} ;; attrs
+              {:fill "white" :colour "white"} ;; attrs
               (- 0.5 (rand))))            ;; offset
 
-(defn draw-snowflake [buffer snowflake]
-  (gfx/circle buffer
+(defn draw-snowflake [canvas snowflake]
+  (gfx/circle canvas
               (:x snowflake)
               (:y snowflake)
               (:r snowflake)
               (:attrs snowflake)))
 
 (defn off-bottom?
-  [snowflake]
-  (> (:y snowflake) (.-height (:elem (:screen @canvas)))))
-
-(defn off-sides?
-  [snowflake]
-  (or (< (:x snowflake) 0)
-      (> (:x snowflake) (.-width (:elem (:screen @canvas))))))
+  [snowflake canvas]
+  (let [y      (:y snowflake)
+        height (.-height (:elem canvas))]
+    (> y height)))
 
 (defn move-snowflake
   [snowflake]
@@ -56,24 +54,32 @@
       :else snowflake)))
 
 (defn main-loop
-  [buffer screen]
-  (run! (partial draw-snowflake buffer) @snowflakes)
+  [buffer ground screen]
+  (run! (fn [s] (draw-snowflake buffer s)) @snowflakes)
   (reset! snowflakes (map move-snowflake @snowflakes))
 
   ;; Snowflakes "die" at the bottom of the screen, and a replaced with a new one randomly somewhere at the top
-  (let [alive-snowflakes (remove off-bottom? @snowflakes)
+  (let [w                (.-width  (:elem screen))
+        h                (.-height (:elem screen))
+        alive-snowflakes (remove (fn [s] (off-bottom? s screen)) @snowflakes)
+        dead-snowflakes  (remove (fn [s] (not (off-bottom? s screen))) @snowflakes)
         num-to-make      (- @num-snowflakes (count alive-snowflakes))
-        new-snowflakes   (map (fn [_] (create-snowflake (.-width (:elem (:screen @canvas))) 0)) (range num-to-make))]
+        new-snowflakes   (map (fn [_] (create-snowflake w 0)) (range num-to-make))]
+
+    (run! (fn [s] (draw-snowflake ground s)) dead-snowflakes)
+
     (reset! snowflakes (into [] (concat alive-snowflakes new-snowflakes)))
     (reset! snowflakes (mapv wrap-snowflake @snowflakes)))
     
-  
   (gfx/flip buffer screen)
-  (gfx/clear buffer))
+  (gfx/flip ground buffer :noclear))
+;;  (gfx/clear buffer))
 
 (defn main
   []
   (let [screen (gfx/create-canvas "canvas" :fullscreen)
+        ground (gfx/create-offscreen-canvas (.-width  (:elem screen))
+                                            (.-height (:elem screen)))
         buffer (gfx/create-offscreen-canvas (.-width  (:elem screen))
                                             (.-height (:elem screen)))]
 
@@ -81,9 +87,10 @@
                                  (.-height (:elem screen)))
                               10000))
     
-    (swap! canvas assoc :screen screen :buffer buffer)
+    (swap! canvas assoc :screen screen :buffer buffer :ground ground)
     
     (gfx/clear buffer)
+    (gfx/clear ground)
     (gfx/clear screen)
 
     (let [slider (.getElementById js/document "windspeed")]
@@ -100,5 +107,5 @@
       (when (> counter 0)
         (<! (timeout 10))
         (.requestAnimationFrame js/window
-                                (fn [] (main-loop buffer screen)))
+                                (fn [] (main-loop buffer ground screen)))
         (recur (dec counter))))))
