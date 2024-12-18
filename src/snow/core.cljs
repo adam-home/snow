@@ -3,33 +3,40 @@
             [snow.gfx :as gfx]))
 
 (def iterations (.-MAX_SAFE_INTEGER js/Number))
-;; (def iterations 1000)
+;;(def iterations 1000)
 (def snowflakes (atom []))
 (def canvas (atom {}))
 (def num-snowflakes (atom 0))
 (def wind-strength (atom 2))
+(def snowflake-img (atom nil))
 
 (defrecord Snowflake [x y r attrs offset])
 
 (defn create-snowflake [max-x max-y]
   (Snowflake. (rand-int max-x)            ;; x
               (rand-int max-y)            ;; y
-              (+ 1 (rand-int 8))          ;; radius
+              (+ 1 (rand-int 32))          ;; radius
               {:fill "white" :colour "white"} ;; attrs
               (- 0.5 (rand))))            ;; offset
 
 (defn draw-snowflake [canvas snowflake]
-  (gfx/circle canvas
-              (:x snowflake)
-              (:y snowflake)
-              (:r snowflake)
-              (:attrs snowflake)))
+  (when @snowflake-img
+    (gfx/draw-image canvas
+                    @snowflake-img
+                    (:x snowflake)
+                    (:y snowflake)
+                    (:r snowflake))))
+    ;; (gfx/circle canvas
+    ;;             (:x snowflake)
+    ;;             (:y snowflake)
+    ;;             (:r snowflake)
+    ;;             (:attrs snowflake))))
 
 (defn off-bottom?
   [snowflake canvas]
   (let [y      (:y snowflake)
         height (.-height (:elem canvas))]
-    (> y height)))
+    (> (+ y (/ (:r snowflake) 2)) height)))
 
 (defn move-snowflake
   [snowflake]
@@ -37,7 +44,7 @@
         new-x (+ (:x snowflake)                 ; current position
                  (Math/sin (:offset snowflake)) ; natural flutter
                  @wind-strength)                ; wind strength
-        new-y (+ 1 (/ (:r snowflake) 4) (:y snowflake)) ; larger flakes fall faster
+        new-y (+ 1 (/ (:r snowflake) 16) (:y snowflake)) ; larger flakes fall faster
         new-o (+ 0.05 (:offset snowflake))]
     
     (assoc snowflake
@@ -88,11 +95,15 @@
                               10000))
     
     (swap! canvas assoc :screen screen :buffer buffer :ground ground)
-    
+
     (gfx/clear buffer)
     (gfx/clear ground)
     (gfx/clear screen)
 
+    (let [c (chan)]
+      (go (gfx/load-image "snowflake.png" c)
+          (reset! snowflake-img (<! c))))
+    
     (let [slider (.getElementById js/document "windspeed")]
       (set! (.-value slider) 0)
       (reset! wind-strength 0)

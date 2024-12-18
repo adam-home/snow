@@ -1,4 +1,5 @@
-(ns snow.gfx)
+(ns snow.gfx
+  (:require [clojure.core.async :as async :refer [>!]]))
 
 (defrecord Canvas [elem ctx])
 
@@ -110,3 +111,15 @@
     (when-not (some #{:noclear} opts)
       (clear backing-canvas))))
 
+(defn load-image [url loaded-chan]
+  (let [img (js/Image.)]
+    (set! (.-onload img) (fn []
+                           ;; once image is loaded, call the callback
+                           (async/go (>! loaded-chan img))))
+    (set! (.-onerror img) (fn [err]
+                            (js/console.error "Failed to load image" err)))
+    (set! (.-src img) url)))
+
+(defn draw-image
+  [canvas image x y size]
+  (.drawImage (:ctx canvas) image x y size size))
